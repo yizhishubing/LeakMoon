@@ -1,0 +1,63 @@
+0 verbose cli D:\nodejs\node.exe D:\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.6.2
+2 info using node@v24.12.0
+3 silly config load:file:D:\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\yizhishubing\AppData\Local\Microsoft\TypeScript\6.0\.npmrc
+5 silly config load:file:C:\Users\yizhishubing\.npmrc
+6 silly config load:file:D:\nodejs\node_global\etc\npmrc
+7 verbose title npm install types-registry@latest
+8 verbose argv "install" "--ignore-scripts" "types-registry@latest"
+9 verbose logfile logs-max:10 dir:D:\intern\LeakMoon\frontend\.npm-cache\_logs\2026-07-03T02_13_15_204Z-
+10 verbose logfile D:\intern\LeakMoon\frontend\.npm-cache\_logs\2026-07-03T02_13_15_204Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 silly packumentCache corgi:https://registry.npmmirror.com/types-registry cache-miss
+14 http fetch GET 200 https://registry.npmmirror.com/types-registry 3847ms (cache miss)
+15 silly packumentCache corgi:https://registry.npmmirror.com/types-registry set size:156839 disposed:false
+16 silly idealTree buildDeps
+17 silly fetch manifest types-registry@0.1.776
+18 silly packumentCache full:https://registry.npmmirror.com/types-registry cache-miss
+19 http fetch GET 200 https://registry.npmmirror.com/types-registry 7617ms (cache miss)
+20 silly packumentCache full:https://registry.npmmirror.com/types-registry set size:246669 disposed:false
+21 silly placeDep ROOT types-registry@0.1.776 OK for:  want: 0.1.776
+22 silly reify moves {}
+23 silly audit bulk request { 'types-registry': [ '0.1.776' ] }
+24 http cache types-registry@https://registry.npmmirror.com/types-registry/-/types-registry-0.1.776.tgz 1ms (cache hit)
+25 silly tarball no local data for types-registry@https://registry.npmmirror.com/types-registry/-/types-registry-0.1.776.tgz. Extracting by manifest.
+26 http fetch POST 404 https://registry.npmmirror.com/-/npm/v1/security/advisories/bulk 64ms
+27 verbose audit error HttpErrorGeneral: 404 Not Found - POST https://registry.npmmirror.com/-/npm/v1/security/advisories/bulk - [NOT_IMPLEMENTED] /-/npm/v1/security/* not implemented yet
+27 verbose audit error     at D:\nodejs\node_modules\npm\node_modules\npm-registry-fetch\lib\check-response.js:103:15
+27 verbose audit error     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+27 verbose audit error     at async #getReport (D:\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\audit-report.js:275:19)
+27 verbose audit error     at async AuditReport.run (D:\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\audit-report.js:100:19) {
+27 verbose audit error   headers: [Object: null prototype] {
+27 verbose audit error     server: [ 'Tengine' ],
+27 verbose audit error     date: [ 'Fri, 03 Jul 2026 02:13:27 GMT' ],
+27 verbose audit error     'content-type': [ 'application/json' ],
+27 verbose audit error     'transfer-encoding': [ 'chunked' ],
+27 verbose audit error     connection: [ 'keep-alive' ],
+27 verbose audit error     'strict-transport-security': [ 'max-age=5184000' ],
+27 verbose audit error     via: [ 'kunlun1.cn8001[,404666]' ],
+27 verbose audit error     'timing-allow-origin': [ '*' ],
+27 verbose audit error     eagleid: [ 'dcb5a61517830448077798236e' ],
+27 verbose audit error     'x-fetch-attempts': [ '1' ]
+27 verbose audit error   },
+27 verbose audit error   statusCode: 404,
+27 verbose audit error   code: 'E404',
+27 verbose audit error   method: 'POST',
+27 verbose audit error   uri: 'https://registry.npmmirror.com/-/npm/v1/security/advisories/bulk',
+27 verbose audit error   body: {
+27 verbose audit error     error: '[NOT_IMPLEMENTED] /-/npm/v1/security/* not implemented yet'
+27 verbose audit error   },
+27 verbose audit error   pkgid: undefined
+27 verbose audit error }
+28 silly audit error [object Object]
+29 silly audit report null
+30 http fetch GET 200 https://cdn.npmmirror.com/packages/types-registry/0.1.776/types-registry-0.1.776.tgz 4396ms (cache miss)
+31 silly ADD node_modules/types-registry
+32 verbose cwd C:\Users\yizhishubing\AppData\Local\Microsoft\TypeScript\6.0
+33 verbose os Windows_NT 10.0.26200
+34 verbose node v24.12.0
+35 verbose npm  v11.6.2
+36 verbose exit 0
+37 info ok
