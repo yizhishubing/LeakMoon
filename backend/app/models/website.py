@@ -15,6 +15,7 @@ class Website(Base):
     url = Column(String(500), unique=True, nullable=False, comment="目标URL")
     depth = Column(Integer, default=2, comment="爬取深度（0=仅首页）")
     max_pages = Column(Integer, default=100, comment="最大爬取页数")
+    status = Column(String(20), default="active", comment="网站状态: active/inactive/error")
     crawl_interval = Column(Integer, default=24, comment="爬取间隔(小时)")
     is_active = Column(Boolean, default=True, comment="是否启用")
     created_at = Column(DateTime, server_default=func.now())
