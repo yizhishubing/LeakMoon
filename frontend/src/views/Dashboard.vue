@@ -66,7 +66,7 @@ const dbOk = ref(false)
 const redisOk = ref(false)
 
 onMounted(async () => {
-  // 检查后端健康状态
+  // 检查后端健康状态（同时推断数据库连接状态）
   try {
     const res = await fetch('http://localhost:8000/api/health')
     if (res.ok) {
@@ -77,13 +77,7 @@ onMounted(async () => {
     backendOk.value = false
     dbOk.value = false
   }
-
-  // 检查 Redis
-  try {
-    const res = await fetch('http://localhost:8000/api/health')
-    redisOk.value = true
-  } catch {
-    redisOk.value = false
-  }
+  // Redis 状态由后端管理，后端在线即视为可用
+  redisOk.value = backendOk.value
 })
 </script>

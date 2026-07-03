@@ -44,10 +44,8 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, from, next) => {
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - 敏感信息巡检平台`
-  }
+router.beforeEach((to, _, next) => {
+  if (to.meta.title) document.title = `${to.meta.title} - 敏感信息巡检平台`
   next()
 })
 
