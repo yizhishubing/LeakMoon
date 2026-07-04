@@ -14,7 +14,7 @@ class LeakRecord(Base):
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
     website_id = Column(Integer, ForeignKey("websites.id"), nullable=False)
     detected_at = Column(DateTime, server_default=func.now())
-    rule_id = Column(Integer, ForeignKey("rules.id"), nullable=False, comment="命中的检测规则ID")
+    rule_id = Column(Integer, ForeignKey("rules.id"), nullable=True, comment="命中的检测规则ID")
     rule_name = Column(String(200), nullable=False, comment="规则名称")
     severity = Column(String(20), nullable=False, comment="严重程度: high/medium/low")
     data_type = Column(String(100), nullable=False, comment="数据类型: id_card, phone, student_id...")

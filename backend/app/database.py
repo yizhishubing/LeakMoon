@@ -19,6 +19,10 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# Import all models here to register them in Base.metadata
+# (must be after Base is defined to avoid circular import)
+from app.models import website, leak, alert, rule, report  # noqa: F401
+
 
 def get_db():
     """依赖注入：为每个请求提供数据库会话"""

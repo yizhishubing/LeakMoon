@@ -30,7 +30,7 @@ async def run_crawl_now(website_id: int, db: Session = Depends(get_db)):
     detector = SensitiveInfoDetector(db)
     total_leaks = 0
     for page in pages:
-        total_leaks += detector.detect_and_save(page, website.id)
+        total_leaks += await detector.detect_and_save(page, website.id)
 
     return {
         "website": website.name,

@@ -73,7 +73,7 @@ async def run_crawl_job():
 
             detector = SensitiveInfoDetector(db)
             for page in pages:
-                detector.detect_and_save(page, website.id)
+                await detector.detect_and_save(page, website.id)
 
             print(f"[Scheduler] Crawled {len(pages)} pages from {website.name}")
 
