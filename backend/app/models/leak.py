@@ -27,7 +27,5 @@ class LeakRecord(Base):
     verified_at = Column(DateTime, nullable=True, comment="确认时间")
     note = Column(Text, nullable=True, comment="备注")
 
-    website = relationship("Website")
-
     def __repr__(self):
         return f"<LeakRecord {self.data_type} on {self.source_url}>"
