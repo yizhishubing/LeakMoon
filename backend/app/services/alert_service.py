@@ -32,17 +32,24 @@ class AlertService:
 
         subject = f"[敏感信息告警] {leak.data_type} - {leak.severity.upper()}"
         body = self._build_alert_body(leak)
-        await self._send_email_alert(subject, body, leak)
 
-        alert_log = AlertLog(
-            leak_record_id=leak.id,
-            channel="email",
-            status=AlertStatus.SENT,
-            recipient=self.settings.ALERT_EMAIL_TO,
-            content=subject,
-        )
-        self.db.add(alert_log)
-        self.db.commit()
+        # 如果 leak 还没有 ID（新创建的记录），先保存它
+        if leak.id is None:
+            self.db.add(leak)
+            self.db.flush()
+
+        success = await self._send_email_alert(subject, body, leak)
+
+        if success:
+            alert_log = AlertLog(
+                leak_record_id=leak.id,
+                channel="email",
+                status=AlertStatus.SENT,
+                recipient=self.settings.ALERT_EMAIL_TO,
+                content=subject,
+            )
+            self.db.add(alert_log)
+            self.db.commit()
 
     def _build_alert_body(self, leak: LeakRecord) -> str:
         """构造告警邮件正文（HTML格式）"""
@@ -63,8 +70,8 @@ class AlertService:
         </html>
         """
 
-    async def _send_email_alert(self, subject: str, body: str, leak: LeakRecord):
-        """通过 SMTP 发送邮件"""
+    async def _send_email_alert(self, subject: str, body: str, leak: LeakRecord) -> bool:
+        """通过 SMTP 发送邮件，返回是否成功"""
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
@@ -76,6 +83,7 @@ class AlertService:
             server.login(self.settings.ALERT_EMAIL_USER, self.settings.ALERT_EMAIL_PASSWORD)
             server.sendmail(self.settings.ALERT_EMAIL_FROM, [self.settings.ALERT_EMAIL_TO], msg.as_string())
             server.quit()
+            return True
 
         except Exception as e:
             error_log = AlertLog(
@@ -89,3 +97,4 @@ class AlertService:
             self.db.add(error_log)
             self.db.commit()
             print(f"[AlertService] Email send failed: {e}")
+            return False
