@@ -26,10 +26,12 @@ class AlertService:
         self.settings = get_settings()
 
     async def send_alert(self, leak: LeakRecord):
-        """发送告警"""
+        """发送告警（仅高严重级别）"""
+        if leak.severity != "high":
+            return
+
         subject = f"[敏感信息告警] {leak.data_type} - {leak.severity.upper()}"
         body = self._build_alert_body(leak)
-
         await self._send_email_alert(subject, body, leak)
 
         alert_log = AlertLog(
@@ -76,7 +78,6 @@ class AlertService:
             server.quit()
 
         except Exception as e:
-            # 记录发送失败的错误
             error_log = AlertLog(
                 leak_record_id=leak.id,
                 channel="email",

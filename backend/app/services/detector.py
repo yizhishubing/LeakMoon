@@ -95,16 +95,16 @@ class SensitiveInfoDetector:
             return text[:2] + "*" * (len(text) - 4) + text[-2:]
         return "***"
 
-    async def detect_and_save(self, page_data: dict, website_id: int) -> int:
+    async def detect_and_save(self, page_data: dict, website_id: int) -> list:
         """
         检测并保存结果的便捷方法（异步版本）
 
         返回：
-            int: 检测到的泄露数量
+            list[LeakRecord]: 检测到的泄露记录列表
         """
         records = await self.detect(page_data)
         for record in records:
             record.website_id = website_id
             self.db.add(record)
         self.db.commit()
-        return len(records)
+        return records

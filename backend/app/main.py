@@ -72,8 +72,15 @@ async def run_crawl_job():
             )
 
             detector = SensitiveInfoDetector(db)
+            alert_svc = AlertService(db)
+
             for page in pages:
-                await detector.detect_and_save(page, website.id)
+                records = await detector.detect_and_save(page, website.id)
+
+                # 对未确认的高风险泄露触发告警
+                for leak in records:
+                    if leak.severity == "high" and leak.is_verified == 0:
+                        await alert_svc.send_alert(leak)
 
             print(f"[Scheduler] Crawled {len(pages)} pages from {website.name}")
 
