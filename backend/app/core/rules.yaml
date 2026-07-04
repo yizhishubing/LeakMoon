@@ -17,10 +17,10 @@ rules:
     is_active: true
 
   - name: 银行卡号
-    pattern: '\b[1-9]\d{9,18}\b'
+    pattern: '(?<!\d)[625]\d{15,18}(?!\d)'
     data_type: bank_card
     severity: high
-    description: 10-19位纯数字（银行卡号范围）
+    description: 16-19位银行卡号（以62/25/51开头）
     is_active: true
 
   # ========== 中敏感级别 ==========
@@ -53,7 +53,7 @@ rules:
     data_type: qq_number
     severity: low
     description: 5-11位纯数字QQ号（需结合上下文判断）
-    is_active: true
+    is_active: false
 
   - name: 座机电话
     pattern: '\b0\d{2,3}-?\d{7,8}\b'
