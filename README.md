@@ -129,7 +129,7 @@ API 文档（Swagger）：http://localhost:8000/docs
 | high | 银行卡号 | 6222021234567890 |
 | high | 密码泄露 | password=xxx |
 | medium | 邮箱 | admin@school.edu.cn |
-| medium | 学号 | 2330200066 |
+| medium | 学号 | 1234567890 |
 | medium | 教职工号 | 教工-0012345 |
 | low | 座机电话 | 010-12345678 |
 | low | 内网 IP | 192.168.1.1 |
