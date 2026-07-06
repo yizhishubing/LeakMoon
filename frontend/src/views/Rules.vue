@@ -40,7 +40,7 @@ onMounted(fetchRules)
 
 async function fetchRules() {
   try {
-    const res = await fetch('http://localhost:8000/api/rules/')
+    const res = await fetch('/api/rules/')
     if (res.ok) rules.value = await res.json()
   } catch {
     ElMessage.warning('后端服务未连接')
@@ -49,7 +49,7 @@ async function fetchRules() {
 
 async function reloadRules() {
   try {
-    await fetch('http://localhost:8000/api/rules/reload', { method: 'POST' })
+    await fetch('/api/rules/reload', { method: 'POST' })
     ElMessage.success('规则已重新加载')
     await fetchRules()
   } catch {

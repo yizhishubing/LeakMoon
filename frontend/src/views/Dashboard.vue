@@ -122,7 +122,7 @@ const riskMapData = ref([
 onMounted(async () => {
   // 检查后端健康状态（同时推断数据库连接状态）
   try {
-    const res = await fetch('http://localhost:8000/api/health')
+    const res = await fetch('/api/health')
     if (res.ok) {
       backendOk.value = true
       dbOk.value = true

@@ -65,7 +65,7 @@ onMounted(fetchWebsites)
 
 async function fetchWebsites() {
   try {
-    const res = await fetch('http://localhost:8000/api/websites/')
+    const res = await fetch('/api/websites/')
     if (res.ok) websites.value = await res.json()
   } catch {
     ElMessage.warning('后端服务未连接，显示空列表')
@@ -74,7 +74,7 @@ async function fetchWebsites() {
 
 async function saveWebsite() {
   try {
-    const res = await fetch('http://localhost:8000/api/websites/', {
+    const res = await fetch('/api/websites/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form.value),
@@ -95,7 +95,7 @@ async function saveWebsite() {
 
 async function runCrawl(id) {
   try {
-    const res = await fetch(`http://localhost:8000/api/crawlers/run/${id}`, { method: 'POST' })
+    const res = await fetch(`/api/crawlers/run/${id}`, { method: 'POST' })
     const data = await res.json()
     ElMessage.info(data.message || `爬取触发成功`)
   } catch {
@@ -105,7 +105,7 @@ async function runCrawl(id) {
 
 async function deleteSite(id) {
   try {
-    await fetch(`http://localhost:8000/api/websites/${id}`, { method: 'DELETE' })
+    await fetch(`/api/websites/${id}`, { method: 'DELETE' })
     ElMessage.success('删除成功')
     await fetchWebsites()
   } catch {
