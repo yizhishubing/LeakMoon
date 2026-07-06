@@ -7,7 +7,7 @@ echo.
 
 cd /d "%~dp0backend"
 echo [1/3] 启动后端服务...
-start "LeakMoon Backend" cmd /k "cd /d %~dp0backend && venv\Scripts\activate && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+start "LeakMoon Backend" cmd /k "cd /d %~dp0backend && venv\Scripts\activate && python -m uvicorn app.main:app --host 0.0.0.0"
 timeout /t 3 /nobreak >nul
 
 cd /d "%~dp0frontend"

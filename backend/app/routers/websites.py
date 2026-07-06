@@ -16,12 +16,12 @@ def list_websites(db: Session = Depends(get_db)):
 @router.post("/", response_model=WebsiteResponse)
 def create_website(data: WebsiteCreate, db: Session = Depends(get_db)):
     """新增一个巡检网站"""
-    if db.query(Website).filter(Website.url == str(data.url)).first():
+    if db.query(Website).filter(Website.url == data.url).first():
         raise HTTPException(status_code=400, detail="该URL已存在")
 
     website = Website(
         name=data.name,
-        url=str(data.url),
+        url=data.url,
         depth=data.depth,
         max_pages=data.max_pages,
         crawl_interval=data.crawl_interval,
@@ -40,9 +40,6 @@ def update_website(website_id: int, data: WebsiteUpdate, db: Session = Depends(g
         raise HTTPException(status_code=404, detail="网站不存在")
 
     update_data = data.model_dump(exclude_unset=True)
-    if "url" in update_data:
-        update_data["url"] = str(update_data["url"])
-
     for key, value in update_data.items():
         setattr(website, key, value)
 

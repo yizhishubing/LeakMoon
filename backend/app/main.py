@@ -18,7 +18,6 @@ from app.services.alert_service import AlertService
 from app.database import SessionLocal
 from app.models.website import Website
 import uvicorn
-import asyncio
 import socket
 
 app = FastAPI(title="校园网站敏感信息泄露巡检平台", version="1.0.0")

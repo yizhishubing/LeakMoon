@@ -5,7 +5,7 @@ from datetime import datetime
 
 class WebsiteCreate(BaseModel):
     name: str
-    url: str = Field(..., description="目标URL，如 http://example.edu.cn")
+    url: str
     depth: int = 2
     max_pages: int = 100
     crawl_interval: int = 24
