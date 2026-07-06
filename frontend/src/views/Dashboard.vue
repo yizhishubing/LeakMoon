@@ -40,6 +40,12 @@
       </el-col>
     </el-row>
 
+    <!-- 风险地图 -->
+    <el-card style="margin-top: 20px;">
+      <template #header><span>各网站风险等级分布</span></template>
+      <RiskMap :data="riskMapData" />
+    </el-card>
+
     <!-- 系统状态 -->
     <el-card style="margin-top: 20px;">
       <template #header><span>📊 系统状态</span></template>
@@ -69,6 +75,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import RiskMap from '@/components/RiskMap.vue'
 
 const stats = ref({ activeWebsites: 0, totalLeaks: 0, highRiskLeaks: 0, pendingAlerts: 0 })
 const backendOk = ref(false)
@@ -103,6 +110,14 @@ const lineOption = computed(() => ({
     areaStyle: {},
   }],
 }))
+
+// 风险地图数据（示例，后续从后端 API 获取）
+const riskMapData = ref([
+  { name: '教务处', high: 12, medium: 8, low: 5 },
+  { name: '图书馆', high: 5, medium: 15, low: 10 },
+  { name: '财务处', high: 20, medium: 3, low: 2 },
+  { name: '学工部', high: 8, medium: 10, low: 15 },
+])
 
 onMounted(async () => {
   // 检查后端健康状态（同时推断数据库连接状态）
