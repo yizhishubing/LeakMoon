@@ -57,21 +57,38 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { reportApi } from '@/api'
 
 const reports = ref([])
 const showDialog = ref(false)
 const form = ref({ title: '', type: 'daily' })
 
+onMounted(fetchReports)
+
+async function fetchReports() {
+  try {
+    reports.value = await reportApi.list()
+  } catch {
+    console.error('获取报表列表失败')
+  }
+}
+
 async function generateReport() {
-  // TODO: 调用后端报表生成 API
-  ElMessage.success('报表生成中...')
-  showDialog.value = false
+  try {
+    const data = form.value || { title: '', type: 'daily' }
+    await reportApi.generate(data)
+    ElMessage.success('报表生成成功')
+    showDialog.value = false
+    form.value = { title: '', type: 'daily' }
+    await fetchReports()
+  } catch {
+    ElMessage.error('报表生成失败')
+  }
 }
 
 function downloadReport(row) {
-  // TODO: 下载报表文件
   ElMessage.info('下载功能开发中')
 }
 </script>

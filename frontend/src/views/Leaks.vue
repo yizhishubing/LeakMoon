@@ -59,7 +59,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { leakApi } from '@/api'
 
 const leaks = ref([])
 const searchQuery = ref('')
@@ -80,19 +80,26 @@ const filteredLeaks = computed(() => {
   return result
 })
 
-onMounted(async () => {
-  // TODO: 从后端 API 获取泄露记录
-  // leaks.value = await leakApi.list()
-})
+onMounted(fetchLeaks)
+
+async function fetchLeaks() {
+  try {
+    leaks.value = await leakApi.list()
+  } catch {
+    console.error('获取泄露记录失败')
+  }
+}
 
 async function confirmLeak(row) {
-  // TODO: 调用 API 更新 is_verified=1
+  await leakApi.verify(row.id, { is_verified: 1 })
   ElMessage.success('已确认')
+  await fetchLeaks()
 }
 
 async function markFalsePositive(row) {
-  // TODO: 调用 API 更新 is_verified=2
+  await leakApi.verify(row.id, { is_verified: 2, note: '误报' })
   ElMessage.info('已标记为误报')
+  await fetchLeaks()
 }
 
 function viewDetail(row) {

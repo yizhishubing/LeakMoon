@@ -44,7 +44,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { alertApi } from '@/api'
 
 const alerts = ref([])
 const statusFilter = ref('')
@@ -68,19 +68,26 @@ function statusLabel(status) {
   return map[status] || status
 }
 
-onMounted(async () => {
-  // TODO: 从后端 API 获取告警列表
-  // alerts.value = await alertApi.list()
-})
+onMounted(fetchAlerts)
+
+async function fetchAlerts() {
+  try {
+    alerts.value = await alertApi.list()
+  } catch {
+    console.error('获取告警列表失败')
+  }
+}
 
 async function acknowledgeAlert(row) {
-  // TODO: 调用 PUT /api/alerts/{id}/ack
+  await alertApi.acknowledge(row.id)
   ElMessage.success('告警已确认')
+  await fetchAlerts()
 }
 
 async function resolveAlert(row) {
-  // TODO: 调用 PUT /api/alerts/{id}/resolve
+  await alertApi.resolve(row.id)
   ElMessage.success('告警已处理')
+  await fetchAlerts()
 }
 
 function viewError(row) {

@@ -11,7 +11,7 @@ FastAPI 主入口
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import websites, crawlers, alerts, rules, reports
+from app.routers import websites, crawlers, alerts, rules, reports, leaks
 from app.services.crawler import SiteCrawler
 from app.services.detector import SensitiveInfoDetector
 from app.services.alert_service import AlertService
@@ -34,6 +34,7 @@ app.include_router(websites.router, prefix="/api/websites", tags=["网站管理"
 app.include_router(crawlers.router, prefix="/api/crawlers", tags=["爬虫控制"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["告警管理"])
 app.include_router(rules.router, prefix="/api/rules", tags=["规则管理"])
+app.include_router(leaks.router, prefix="/api/leaks", tags=["泄露记录"])
 app.include_router(reports.router, prefix="/api/reports", tags=["报表管理"])
 
 
