@@ -1,5 +1,6 @@
 <template>
   <div style="padding: 20px;">
+    <!-- 统计卡片 -->
     <el-row :gutter="20">
       <el-col :span="6">
         <el-card shadow="hover">
@@ -23,10 +24,25 @@
       </el-col>
     </el-row>
 
+    <!-- 图表区域 -->
+    <el-row :gutter="20" style="margin-top: 20px;">
+      <el-col :span="12">
+        <el-card>
+          <template #header><span>泄露类型分布</span></template>
+          <v-chart :option="pieOption" autoresize style="height: 300px;" />
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card>
+          <template #header><span>近7天泄露趋势</span></template>
+          <v-chart :option="lineOption" autoresize style="height: 300px;" />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 系统状态 -->
     <el-card style="margin-top: 20px;">
-      <template #header>
-        <span>📊 系统状态</span>
-      </template>
+      <template #header><span>📊 系统状态</span></template>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="后端服务">
           <el-tag :type="backendOk ? 'success' : 'danger'">
@@ -52,18 +68,41 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
-const stats = ref({
-  activeWebsites: 0,
-  totalLeaks: 0,
-  highRiskLeaks: 0,
-  pendingAlerts: 0,
-})
-
+const stats = ref({ activeWebsites: 0, totalLeaks: 0, highRiskLeaks: 0, pendingAlerts: 0 })
 const backendOk = ref(false)
 const dbOk = ref(false)
 const redisOk = ref(false)
+
+// 饼图配置：泄露类型分布
+const pieOption = computed(() => ({
+  tooltip: { trigger: 'item' },
+  series: [{
+    type: 'pie',
+    radius: ['40%', '70%'],
+    data: [
+      { value: 1048, name: '身份证号' },
+      { value: 735, name: '手机号' },
+      { value: 580, name: '邮箱' },
+      { value: 484, name: '学号' },
+      { value: 300, name: '其他' },
+    ],
+  }],
+}))
+
+// 折线图配置：近7天趋势
+const lineOption = computed(() => ({
+  tooltip: { trigger: 'axis' },
+  xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
+  yAxis: { type: 'value' },
+  series: [{
+    type: 'line',
+    data: [5, 12, 8, 15, 10, 3, 7],
+    smooth: true,
+    areaStyle: {},
+  }],
+}))
 
 onMounted(async () => {
   // 检查后端健康状态（同时推断数据库连接状态）
