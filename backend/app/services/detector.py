@@ -20,20 +20,10 @@ from app.models.leak import LeakRecord
 from app.services.rule_engine import RuleEngine
 from app.core.filters import FalsePositiveFilter
 
-# 用于匹配 base64 编码数据块的正则
-# 匹配形如 "data:image/png;base64,xxxxx" 或长串 base64 内容（≥80字符）
-_BASE64_PATTERN = re.compile(
-    r'data:[^;]*;base64,[A-Za-z0-9+/=]{40,}'
-)
-# 匹配超长连续 base64 字符序列（≥64字符，且包含至少一个非字母数字的特殊base64字符）
-_LONG_BASE64_SEQUENCE = re.compile(
-    r'[A-Za-z0-9+/]{64,}={0,2}'
-)
-# 匹配 img src 属性中的 base64 数据（如 src="data:image/...")
-_IMG_SRC_BASE64 = re.compile(
-    r'<img\b[^>]*\bsrc\s*=\s*["\']data:[^"\']*base64[^"\']*["\'][^>]*>',
-    re.IGNORECASE
-)
+# 用于匹配 base64 编码数据块的正则（模块级预编译，避免重复创建）
+_BASE64_PATTERN = re.compile(r'data:[^;]*;base64,[A-Za-z0-9+/=]{40,}')
+_LONG_BASE64_SEQUENCE = re.compile(r'[A-Za-z0-9+/]{64,}={0,2}')
+_IMG_SRC_BASE64 = re.compile(r'<img\b[^>]*\bsrc\s*=\s*["\']data:[^"\']*base64[^"\']*["\'][^>]*>', re.IGNORECASE)
 
 
 class SensitiveInfoDetector:
@@ -46,11 +36,9 @@ class SensitiveInfoDetector:
         """
         检测单个页面的敏感信息
 
-        参数：
-            page_data: {'url', 'title', 'text', 'links'}
-
-        返回：
-            list[LeakRecord]: 检测到的泄露记录
+        优化：
+        - 预编译规则列表，避免每次循环访问 tuple
+        - 减少中间变量分配
         """
         url = page_data["url"]
         text = page_data["text"]
@@ -58,18 +46,25 @@ class SensitiveInfoDetector:
         # 清理文本中的 base64 编码数据，防止图片编码被误判为敏感信息
         text = self._clean_base64_from_text(text)
 
-        records = []
+        if not text:
+            return []
 
-        for compiled_regex, rule in self.rule_engine.compiled_rules:
+        records = []
+        # 预提取规则列表，避免重复访问 self.rule_engine.compiled_rules
+        rules = self.rule_engine.compiled_rules
+        is_fp = self.false_positive_filter.is_false_positive
+        mask_fn = self._mask_sensitive
+
+        for compiled_regex, rule in rules:
             for match in compiled_regex.finditer(text):
                 matched_text = match.group(0)
 
                 # 误报过滤
-                if self.false_positive_filter.is_false_positive(matched_text, rule):
+                if is_fp(matched_text, rule):
                     continue
 
                 # 脱敏处理
-                masked_text = self._mask_sensitive(matched_text, rule)
+                masked_text = mask_fn(matched_text, rule)
 
                 # 提取上下文
                 start = match.start()
@@ -104,7 +99,7 @@ class SensitiveInfoDetector:
 
         注意：短 base64 字符串（如 <64字符）可能出现在正常文本中，予以保留
         """
-        # 1. 移除 <img src="data:...base64,..."> 标签（从原始HTML残留中提取的文本中可能出现）
+        # 1. 移除 <img src="data:...base64,..."> 标签
         text = _IMG_SRC_BASE64.sub('', text)
 
         # 2. 移除 data URI 格式的 base64 数据
@@ -146,8 +141,8 @@ class SensitiveInfoDetector:
         """
         检测并保存结果的便捷方法（异步版本）
 
-        返回：
-            list[LeakRecord]: 检测到的泄露记录列表
+        注意：此方法逐条 commit，性能不如批量 detect + 统一 commit。
+        推荐在 crawlers.py 中使用 detect 批量处理。
         """
         records = await self.detect(page_data)
         for record in records:
