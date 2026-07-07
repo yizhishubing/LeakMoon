@@ -3,14 +3,14 @@ rules:
   # ========== 高敏感级别 ==========
 
   - name: 中国大陆居民身份证号
-    pattern: '(?<!\d)[1-9]\d{5}(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx](?!\d)'
+    pattern: '\b[1-9]\d{5}(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b'
     data_type: id_card
     severity: high
     description: 18位身份证号码
     is_active: true
 
   - name: 手机号
-    pattern: '(?<!\d)1[3-9]\d{9}(?!\d)'
+    pattern: '\b1[3-9]\d{9}\b'
     data_type: phone
     severity: high
     description: 中国大陆11位手机号码
@@ -26,21 +26,21 @@ rules:
   # ========== 中敏感级别 ==========
 
   - name: 学号（常见格式）
-    pattern: '(?<!\d)\d{2}(?:2[0-3]|2[1-2]|2[0-4])\d{6,8}(?!\d)'
+    pattern: '\b\d{2}(?:2[0-3]|2[1-2]|2[0-4])\d{6,8}\b'
     data_type: student_id
     severity: medium
     description: 两位入学年份+序列号的学号格式
     is_active: true
 
   - name: 邮箱地址
-    pattern: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}'
+    pattern: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     data_type: email
     severity: medium
     description: 标准邮箱格式
     is_active: true
 
   - name: 教职工工号
-    pattern: '(?:教|职工|员工)[-_]?\d{4,10}'
+    pattern: '\b(?:教|职工|员工)[-_]?\d{4,10}\b'
     data_type: staff_id
     severity: medium
     description: 带中文前缀的教职工编号
@@ -49,14 +49,14 @@ rules:
   # ========== 低敏感级别 ==========
 
   - name: QQ号
-    pattern: '(?<!\d)[1-9]\d{4,10}(?!\d)'
+    pattern: '\b[1-9]\d{4,10}\b'
     data_type: qq_number
     severity: low
     description: 5-11位纯数字QQ号（需结合上下文判断）
     is_active: false
 
   - name: 座机电话
-    pattern: '(?<!\d)0\d{2,3}-?\d{7,8}(?!\d)'
+    pattern: '\b0\d{2,3}-?\d{7,8}\b'
     data_type: landline
     severity: low
     description: 带区号的固定电话
@@ -72,7 +72,7 @@ rules:
     is_active: true
 
   - name: 内网IP地址
-    pattern: '(?<!\d)10\.\d{1,3}\.\d{1,3}\.\d{1,3}(?!\d)|(?<!\d)192\.168\.\d{1,3}\.\d{1,3}(?!\d)'
+    pattern: '\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b192\.168\.\d{1,3}\.\d{1,3}\b'
     data_type: internal_ip
     severity: low
     description: 内网IP地址段
