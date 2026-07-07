@@ -11,7 +11,7 @@
 
 import httpx
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, unquote
 from typing import Optional
 import asyncio
 import re
@@ -34,6 +34,15 @@ _NON_HTML_CONTENT_TYPES = (
     "application/pdf", "application/zip", "application/x-",
 )
 
+# 需要跳过的 URL 模式（锚点、空链接等）
+_SKIP_URL_PATTERNS = (
+    re.compile(r'#$', re.IGNORECASE),             # 锚点链接如 "url/"
+    re.compile(r'^javascript:', re.IGNORECASE),   # JS 伪协议
+    re.compile(r'^mailto:', re.IGNORECASE),       # 邮件协议
+    re.compile(r'^tel:', re.IGNORECASE),          # 电话协议
+    re.compile(r'^\?'),                           # 只有查询参数的 URL
+)
+
 
 class SiteCrawler:
     """
@@ -42,14 +51,15 @@ class SiteCrawler:
     优化：
     - 共享 httpx 客户端连接池，避免每次请求重建 TCP 连接
     - 默认延迟降至 0.3s，在保证礼貌爬取的前提下提升速度
-    - 使用 aiohttp/lxml 替代 httpx+lxml 的 text 转换开销
+    - 使用并发请求 + 信号量控制，避免串行等待
+    - 过滤锚点、空链接等无效 URL，减少无用爬取
     """
 
     def __init__(
         self,
         timeout: int = 30,
-        delay: float = 0.3,  # 默认从 1.0s 降到 0.3s
-        max_concurrent: int = 5,  # 最大并发请求数
+        delay: float = 0.3,
+        max_concurrent: int = 5,
     ):
         self.timeout = timeout
         self.delay = delay
@@ -65,9 +75,9 @@ class SiteCrawler:
         主爬取方法
 
         优化：
-        - 在 __init__ 中创建一次 httpx 客户端，复用连接池
-        - 使用信号量控制并发请求数，避免过多连接
-        - 批量提取链接和文本，减少重复解析
+        - BFS 层级遍历，按深度分组并发
+        - 标准化 URL（去锚点、去尾部斜杠），避免重复爬取
+        - 使用 set 去重 visited，避免同一页面被多次请求
         """
         parsed = urlparse(start_url)
         self.domains.add(parsed.netloc)
@@ -85,53 +95,91 @@ class SiteCrawler:
 
             async def _fetch_with_semaphore(url: str, depth: int) -> Optional[dict]:
                 async with semaphore:
-                    return await self._fetch_page(url)
+                    return await self._fetch_page(url, depth)
 
             results = []
-            queue = [(start_url, 0)]  # (url, current_depth)
+            # BFS: 当前层待爬取的 URL 列表
+            current_level = [(start_url, 0)]
 
-            while queue and len(results) < max_pages:
-                # 批量收集当前批次可并发请求的 URL
-                batch_urls = []
-                for url, depth in queue[:]:
-                    if url in self.visited:
-                        queue.remove((url, depth))
+            while current_level and len(results) < max_pages:
+                # 过滤无效 URL，收集有效 URL
+                valid_urls = []
+                for url, depth in current_level:
+                    normalized = self._normalize_url(url)
+                    if not normalized:
                         continue
-                    parsed_url = urlparse(url)
+                    if normalized in self.visited:
+                        continue
+                    parsed_url = urlparse(normalized)
                     if parsed_url.netloc not in self.domains:
-                        queue.remove((url, depth))
                         continue
-                    batch_urls.append((url, depth))
+                    valid_urls.append((normalized, depth))
 
-                if not batch_urls:
+                if not valid_urls:
                     break
 
-                # 限制单批数量（不超过剩余容量）
+                # 限制数量（不超过剩余容量）
                 remaining = max_pages - len(results)
-                batch_urls = batch_urls[:remaining]
-                self.visited.update(u for u, _ in batch_urls)
+                valid_urls = valid_urls[:remaining]
+                self.visited.update(u for u, _ in valid_urls)
 
-                # 并发请求当前批次
-                tasks = [_fetch_with_semaphore(url, depth) for url, depth in batch_urls]
+                # 并发请求当前层
+                tasks = [_fetch_with_semaphore(url, depth) for url, depth in valid_urls]
                 batch_results = await asyncio.gather(*tasks)
 
+                # 收集结果并提取子链接
+                next_level = []
                 for page_data in batch_results:
-                    if page_data:
-                        results.append(page_data)
-                        # 提取子链接加入队列
-                        if page_data.get("_depth", 0) < max_depth:
-                            for link in page_data.get("links", []):
-                                if link not in self.visited:
-                                    queue.append((link, page_data["_depth"] + 1))
+                    if page_data is None:
+                        continue
+                    results.append(page_data)
+                    # 提取子链接加入下一层
+                    if page_data["_depth"] < max_depth:
+                        for link in page_data.get("links", []):
+                            normalized = self._normalize_url(link)
+                            if normalized and normalized not in self.visited:
+                                parsed_link = urlparse(normalized)
+                                if parsed_link.netloc in self.domains:
+                                    next_level.append((normalized, page_data["_depth"] + 1))
 
-                # 批次间短暂延迟，避免瞬时并发
-                if queue and len(results) < max_pages:
+                # 批次间短暂延迟
+                if next_level and len(results) < max_pages:
                     await asyncio.sleep(self.delay)
+
+                current_level = next_level
 
             return results
         finally:
             await self._client.aclose()
             self._client = None
+
+    @staticmethod
+    def _normalize_url(url: str) -> Optional[str]:
+        """
+        标准化 URL：解码百分号编码、去除锚点、去除尾部斜杠
+
+        返回 None 表示应跳过该 URL
+        """
+        if not url:
+            return None
+
+        # 跳过伪协议
+        lower = url.lower().strip()
+        for pattern in _SKIP_URL_PATTERNS:
+            if pattern.search(lower):
+                return None
+
+        # 解码百分号编码，去除 fragment（#xxx）
+        decoded = unquote(url)
+        parsed = urlparse(decoded)
+        # 去掉 fragment
+        clean = parsed._replace(fragment="").geturl()
+
+        # 标准化尾部斜杠（去掉末尾多余的 /，但保留根路径 /）
+        if clean != "/" and clean.endswith("/"):
+            clean = clean.rstrip("/")
+
+        return clean if clean else None
 
     async def _is_html_page(self, url: str, response: httpx.Response) -> bool:
         """
@@ -162,13 +210,12 @@ class SiteCrawler:
 
         return True
 
-    async def _fetch_page(self, url: str) -> Optional[dict]:
+    async def _fetch_page(self, url: str, depth: int) -> Optional[dict]:
         """
         获取单个页面的内容
 
         优化：
         - 使用共享客户端发送请求（复用 TCP 连接）
-        - 使用 response.text 而非 response.content 解码（httpx 内部已缓存）
         - 一次性提取所有需要的数据，减少 DOM 遍历次数
         """
         try:
@@ -205,16 +252,14 @@ class SiteCrawler:
             links = []
             for a_tag in soup.find_all("a", href=True):
                 full_url = urljoin(url, a_tag["href"])
-                parsed_full = urlparse(full_url)
-                if parsed_full.netloc in self.domains and parsed_full.scheme in ("http", "https"):
-                    links.append(full_url)
+                links.append(full_url)
 
             return {
                 "url": url,
                 "title": title,
                 "text": text,
                 "links": links[:50],
-                "_depth": 0,  # 临时字段，供 crawl() 使用，清理后移除
+                "_depth": depth,
             }
 
         except Exception as e:

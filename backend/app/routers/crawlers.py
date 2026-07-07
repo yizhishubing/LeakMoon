@@ -60,7 +60,6 @@ async def run_crawl_now(website_id: int, db: Session = Depends(get_db)):
     # 第三阶段：异步发送高严重级别告警
     high_severity_leaks = [r for r in all_records if r.severity == "high" and r.is_verified == 0]
     if high_severity_leaks:
-        settings = get_settings()
         # 后台任务：发送告警邮件，不阻塞返回
         import asyncio
         async def _send_alerts_async():
