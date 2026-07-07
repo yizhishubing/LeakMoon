@@ -27,3 +27,6 @@ frontend/dist/
 软件学院实习项目审批表.md
 前期准备指南.md
 开发流程文档.md
+
+# npm cache
+.npm-cache/
