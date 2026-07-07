@@ -6,6 +6,7 @@
 2. 解析HTML，提取正文文本和所有内部链接
 3. 对每个内部链接，如果深度未达到上限则继续爬取
 4. 遵守爬取频率限制，避免对目标站点造成压力
+5. 过滤图片、静态资源等非HTML页面，防止二进制内容被误判为文本
 """
 
 import httpx
@@ -13,6 +14,25 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from typing import Optional
 import asyncio
+import re
+
+
+# 需要跳过的静态资源文件扩展名（不会被当作HTML页面爬取）
+_STATIC_EXTENSIONS = {
+    '.gif', '.jpg', '.jpeg', '.png', '.bmp', '.webp', '.svg', '.ico', '.avif',
+    '.css', '.js', '.woff', '.woff2', '.ttf', '.eot',
+    '.zip', '.rar', '.tar', '.gz', '.7z',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.mp3', '.mp4', '.avi', '.mov', '.wmv', '.flv',
+    '.json', '.xml', '.yaml', '.yml',
+    '.exe', '.dmg', '.apk', '.deb', '.rpm',
+}
+
+# 通过 Content-Type 判断是否为非HTML内容
+_NON_HTML_CONTENT_TYPES = {
+    'image/', 'video/', 'audio/', 'application/octet-stream',
+    'application/pdf', 'application/zip', 'application/x-',
+}
 
 
 class SiteCrawler:
@@ -67,6 +87,35 @@ class SiteCrawler:
 
         return results
 
+    async def _is_html_page(self, url: str, response: httpx.Response) -> bool:
+        """
+        判断请求的URL是否为HTML页面，而非静态资源或图片
+
+        策略：
+        1. 通过文件扩展名快速判断（.gif/.jpg/.css/.js 等直接跳过）
+        2. 通过 Content-Type 响应头判断（image/*, application/octet-stream 等跳过）
+        3. 通过响应体大小判断（过大文件大概率不是HTML页面）
+        """
+        # 策略1：检查URL路径的文件扩展名
+        parsed = urlparse(url)
+        path = parsed.path.lower()
+        for ext in _STATIC_EXTENSIONS:
+            if path.endswith(ext):
+                return False
+
+        # 策略2：检查 Content-Type
+        content_type = response.headers.get("content-type", "").lower()
+        for ct in _NON_HTML_CONTENT_TYPES:
+            if content_type.startswith(ct):
+                return False
+
+        # 策略3：HTML页面一般不超过10MB
+        content_length = response.headers.get("content-length")
+        if content_length and int(content_length) > 10 * 1024 * 1024:
+            return False
+
+        return True
+
     async def _fetch_page(self, url: str) -> Optional[dict]:
         """
         获取单个页面的内容
@@ -74,15 +123,21 @@ class SiteCrawler:
         做法：
         1. 设置 User-Agent 模拟浏览器
         2. 使用 httpx 异步发送请求
-        3. 用 BeautifulSoup 解析 HTML
-        4. 移除 script/style 等标签后提取文本
-        5. 收集同域名的 a 标签 href 作为内部链接
+        3. 判断是否为HTML页面，跳过图片和静态资源
+        4. 用 BeautifulSoup 解析 HTML
+        5. 移除 script/style 等标签后提取文本
+        6. 收集同域名的 a 标签 href 作为内部链接
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
                 response = await client.get(url, headers=headers, follow_redirects=True)
                 response.raise_for_status()
+
+            # 过滤非HTML页面（图片、CSS、JS、PDF等静态资源）
+            if not await self._is_html_page(url, response):
+                print(f"[Crawler] Skipped non-HTML resource: {url}")
+                return None
 
             soup = BeautifulSoup(response.text, "lxml")
 
