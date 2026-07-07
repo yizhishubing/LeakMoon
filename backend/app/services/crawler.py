@@ -90,6 +90,11 @@ class SiteCrawler:
             for tag in soup(["script", "style", "nav", "footer", "header"]):
                 tag.decompose()
 
+            # 移除图片标签中的 base64 src 数据，防止图片编码被当作文本检测
+            for img_tag in soup.find_all("img", src=True):
+                if "base64" in img_tag.get("src", "").lower():
+                    img_tag.decompose()
+
             # 提取标题
             title = soup.title.string.strip() if soup.title else ""
 

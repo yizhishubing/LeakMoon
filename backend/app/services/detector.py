@@ -6,10 +6,11 @@
 3. 将真实泄露记录入库
 4. 返回检测结果的摘要统计
 做法：
-1. 加载 RuleEngine 中的所有已编译正则
-2. 对每段文本逐一匹配
-3. 对匹配结果调用 FalsePositiveFilter 进行二次过滤
-4. 将确认的泄露创建 LeakRecord 对象存入数据库
+1. 清理文本中的 base64 编码和图片相关数据，防止误判
+2. 加载 RuleEngine 中的所有已编译正则
+3. 对每段文本逐一匹配
+4. 对匹配结果调用 FalsePositiveFilter 进行二次过滤
+5. 将确认的泄露创建 LeakRecord 对象存入数据库
 """
 
 import re
@@ -18,6 +19,21 @@ from sqlalchemy.orm import Session
 from app.models.leak import LeakRecord
 from app.services.rule_engine import RuleEngine
 from app.core.filters import FalsePositiveFilter
+
+# 用于匹配 base64 编码数据块的正则
+# 匹配形如 "data:image/png;base64,xxxxx" 或长串 base64 内容（≥80字符）
+_BASE64_PATTERN = re.compile(
+    r'data:[^;]*;base64,[A-Za-z0-9+/=]{40,}'
+)
+# 匹配超长连续 base64 字符序列（≥64字符，且包含至少一个非字母数字的特殊base64字符）
+_LONG_BASE64_SEQUENCE = re.compile(
+    r'[A-Za-z0-9+/]{64,}={0,2}'
+)
+# 匹配 img src 属性中的 base64 数据（如 src="data:image/...")
+_IMG_SRC_BASE64 = re.compile(
+    r'<img\b[^>]*\bsrc\s*=\s*["\']data:[^"\']*base64[^"\']*["\'][^>]*>',
+    re.IGNORECASE
+)
 
 
 class SensitiveInfoDetector:
@@ -38,6 +54,10 @@ class SensitiveInfoDetector:
         """
         url = page_data["url"]
         text = page_data["text"]
+
+        # 清理文本中的 base64 编码数据，防止图片编码被误判为敏感信息
+        text = self._clean_base64_from_text(text)
+
         records = []
 
         for compiled_regex, rule in self.rule_engine.compiled_rules:
@@ -71,6 +91,33 @@ class SensitiveInfoDetector:
                 ))
 
         return records
+
+    @staticmethod
+    def _clean_base64_from_text(text: str) -> str:
+        """
+        清理文本中的 base64 编码数据，防止图片/文件编码被误判为敏感信息
+
+        策略：
+        1. 移除 HTML 中的 <img src="data:image/...;base64,..."> 标签
+        2. 移除 data URI 格式的 base64 数据（如 "data:image/png;base64,xxxxx"）
+        3. 替换超长连续 base64 字符序列为空白（≥64字符的 base64 串几乎不可能是正常文本）
+
+        注意：短 base64 字符串（如 <64字符）可能出现在正常文本中，予以保留
+        """
+        # 1. 移除 <img src="data:...base64,..."> 标签（从原始HTML残留中提取的文本中可能出现）
+        text = _IMG_SRC_BASE64.sub('', text)
+
+        # 2. 移除 data URI 格式的 base64 数据
+        text = _BASE64_PATTERN.sub(' ', text)
+
+        # 3. 替换超长连续 base64 字符序列
+        text = _LONG_BASE64_SEQUENCE.sub(' ', text)
+
+        # 4. 压缩多余空白
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = re.sub(r' {3,}', ' ', text)
+
+        return text
 
     def _mask_sensitive(self, text: str, rule: dict) -> str:
         """
