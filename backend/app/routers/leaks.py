@@ -3,9 +3,9 @@
 作用：查询泄露记录列表、确认/误报标记
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from app.database import get_db
 from app.models.leak import LeakRecord
 from app.schemas.leak import LeakResponse
@@ -14,13 +14,18 @@ router = APIRouter()
 
 
 @router.get("/", response_model=list[LeakResponse])
-def list_leaks(skip: int = 0, limit: int = 50, search: str = "", db: Session = Depends(get_db)):
+def list_leaks(
+    skip: int = 0,
+    limit: int = 30,
+    search: str = "",
+    db: Session = Depends(get_db),
+):
     """
-    获取泄露记录列表（分页 + 搜索）
+    获取泄露记录列表（分页 + 搜索 + 按检测时间倒序）
 
     参数：
         skip: 跳过记录数
-        limit: 每页数量
+        limit: 每页数量，默认30
         search: 搜索关键词（匹配 URL 或类型）
     """
     query = db.query(LeakRecord)
@@ -31,7 +36,21 @@ def list_leaks(skip: int = 0, limit: int = 50, search: str = "", db: Session = D
                 LeakRecord.data_type.contains(search),
             )
         )
-    return query.offset(skip).limit(limit).all()
+    return query.order_by(LeakRecord.detected_at.desc()).offset(skip).limit(limit).all()
+
+
+@router.get("/total")
+def get_leak_total(search: str = "", db: Session = Depends(get_db)):
+    """获取泄露记录总数（用于分页）"""
+    query = db.query(func.count(LeakRecord.id))
+    if search:
+        query = query.filter(
+            or_(
+                LeakRecord.source_url.contains(search),
+                LeakRecord.data_type.contains(search),
+            )
+        )
+    return {"total": query.scalar()}
 
 
 @router.put("/{leak_id}/verify")

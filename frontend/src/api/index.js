@@ -36,6 +36,7 @@ export const crawlerApi = {
 
 export const leakApi = {
   list: (params) => api.get('/leaks/', { params }),
+  total: (params) => api.get('/leaks/total', { params }),
   verify: (id, data) => api.put(`/leaks/${id}/verify`, data),
 }
 

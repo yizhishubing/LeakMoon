@@ -33,14 +33,29 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150">
+        <el-table-column label="操作" width="200" align="center">
           <template #default="{ row }">
-            <el-button size="small" type="success" @click="confirmLeak(row)">确认</el-button>
-            <el-button size="small" type="info" @click="markFalsePositive(row)">误报</el-button>
-            <el-button size="small" @click="viewDetail(row)">详情</el-button>
+            <el-button-group>
+              <el-button size="small" type="success" @click="confirmLeak(row)">确认</el-button>
+              <el-button size="small" type="info" @click="markFalsePositive(row)">误报</el-button>
+              <el-button size="small" @click="viewDetail(row)">详情</el-button>
+            </el-button-group>
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 分页器 -->
+      <div style="display: flex; justify-content: center; margin-top: 20px;">
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="totalCount"
+          :pager-count="5"
+          layout="total, prev, pager, next, jumper"
+          background
+          @current-change="handlePageChange"
+        />
+      </div>
     </el-card>
 
     <!-- 详情对话框 -->
@@ -59,6 +74,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { leakApi } from '@/api'
 
 const leaks = ref([])
@@ -66,6 +82,11 @@ const searchQuery = ref('')
 const severityFilter = ref('')
 const detailVisible = ref(false)
 const currentLeak = ref(null)
+
+// 分页
+const currentPage = ref(1)
+const pageSize = 30
+const totalCount = ref(0)
 
 // 前端过滤：搜索URL或类型 + 严重程度筛选
 const filteredLeaks = computed(() => {
@@ -84,10 +105,25 @@ onMounted(fetchLeaks)
 
 async function fetchLeaks() {
   try {
-    leaks.value = await leakApi.list()
+    // 获取总数
+    const totalRes = await leakApi.total({ search: searchQuery.value })
+    totalCount.value = totalRes.total
+
+    // 获取当前页数据
+    const params = {
+      skip: (currentPage.value - 1) * pageSize,
+      limit: pageSize,
+      search: searchQuery.value,
+    }
+    leaks.value = await leakApi.list(params)
   } catch {
     console.error('获取泄露记录失败')
   }
+}
+
+async function handlePageChange(page) {
+  currentPage.value = page
+  await fetchLeaks()
 }
 
 async function confirmLeak(row) {
