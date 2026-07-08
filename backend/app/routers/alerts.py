@@ -5,6 +5,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app.models.alert import AlertLog, AlertStatus
 from app.models.leak import LeakRecord
@@ -14,9 +15,24 @@ router = APIRouter()
 
 
 @router.get("/", response_model=list[AlertResponse])
-def list_alerts(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    """获取告警列表（分页）"""
-    return db.query(AlertLog).offset(skip).limit(limit).all()
+def list_alerts(
+    skip: int = 0,
+    limit: int = 30,
+    status: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    获取告警列表（分页 + 按时间倒序 + 可选状态筛选）
+
+    参数：
+        skip: 跳过记录数
+        limit: 每页数量，默认30
+        status: 按状态筛选（可选）
+    """
+    query = db.query(AlertLog).order_by(AlertLog.sent_at.desc())
+    if status:
+        query = query.filter(AlertLog.status == status)
+    return query.offset(skip).limit(limit).all()
 
 
 @router.put("/{alert_id}/ack")
@@ -41,3 +57,12 @@ def resolve_alert(alert_id: int, db: Session = Depends(get_db)):
     alert.status = AlertStatus.RESOLVED
     db.commit()
     return {"message": "告警已处理"}
+
+
+@router.get("/total")
+def get_alert_total(status: str = "", db: Session = Depends(get_db)):
+    """获取告警总数（用于分页）"""
+    query = db.query(func.count(AlertLog.id))
+    if status:
+        query = query.filter(AlertLog.status == status)
+    return {"total": query.scalar()}

@@ -42,6 +42,7 @@ export const leakApi = {
 
 export const alertApi = {
   list: (params) => api.get('/alerts/', { params }),
+  total: (params) => api.get('/alerts/total', { params }),
   acknowledge: (id) => api.put(`/alerts/${id}/ack`),
   resolve: (id) => api.put(`/alerts/${id}/resolve`),
 }

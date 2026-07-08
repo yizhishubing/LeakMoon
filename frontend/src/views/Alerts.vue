@@ -33,6 +33,19 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 分页器 -->
+      <div style="display: flex; justify-content: center; margin-top: 20px;">
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="totalCount"
+          :pager-count="5"
+          layout="total, prev, pager, next, jumper"
+          background
+          @current-change="handlePageChange"
+        />
+      </div>
     </el-card>
 
     <!-- 错误详情对话框 -->
@@ -44,12 +57,18 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { alertApi } from '@/api'
 
 const alerts = ref([])
 const statusFilter = ref('')
 const errorVisible = ref(false)
 const currentAlert = ref(null)
+
+// 分页
+const currentPage = ref(1)
+const pageSize = 30
+const totalCount = ref(0)
 
 // 前端过滤：按状态筛选
 const filteredAlerts = computed(() => {
@@ -72,10 +91,23 @@ onMounted(fetchAlerts)
 
 async function fetchAlerts() {
   try {
-    alerts.value = await alertApi.list()
+    const params = {
+      skip: (currentPage.value - 1) * pageSize,
+      limit: pageSize,
+      status: statusFilter.value,
+    }
+    alerts.value = await alertApi.list(params)
+    // 获取总数
+    const totalRes = await alertApi.total({ status: statusFilter.value })
+    totalCount.value = totalRes.total
   } catch {
     console.error('获取告警列表失败')
   }
+}
+
+async function handlePageChange(page) {
+  currentPage.value = page
+  await fetchAlerts()
 }
 
 async function acknowledgeAlert(row) {
