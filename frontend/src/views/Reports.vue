@@ -23,7 +23,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="120" align="center">
           <template #default="{ row }">
             <el-button size="small" type="primary" @click="downloadReport(row)">下载</el-button>
           </template>
@@ -89,6 +89,7 @@ async function generateReport() {
 }
 
 function downloadReport(row) {
-  ElMessage.info('下载功能开发中')
+  // 直接跳转下载 Excel 文件
+  window.open(`/api/reports/download/${row.id}`, '_blank')
 }
 </script>
