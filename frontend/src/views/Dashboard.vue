@@ -82,56 +82,88 @@ const backendOk = ref(false)
 const dbOk = ref(false)
 const redisOk = ref(false)
 
-// 饼图配置：泄露类型分布
+// 从 API 获取的饼图数据
+const pieData = ref([])
+// 从 API 获取的趋势数据
+const trendData = ref({ dates: [], counts: [] })
+// 从 API 获取的风险地图数据
+const riskMapData = ref([])
+
 const pieOption = computed(() => ({
   tooltip: { trigger: 'item' },
   series: [{
     type: 'pie',
     radius: ['40%', '70%'],
-    data: [
-      { value: 1048, name: '身份证号' },
-      { value: 735, name: '手机号' },
-      { value: 580, name: '邮箱' },
-      { value: 484, name: '学号' },
-      { value: 300, name: '其他' },
+    data: pieData.value.length > 0 ? pieData.value.map(d => ({ name: d.name, value: d.value })) : [
+      { value: 0, name: '暂无数据' },
     ],
   }],
 }))
 
-// 折线图配置：近7天趋势
 const lineOption = computed(() => ({
   tooltip: { trigger: 'axis' },
-  xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
+  xAxis: { type: 'category', data: trendData.value.dates.length > 0 ? trendData.value.dates : ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
   yAxis: { type: 'value' },
   series: [{
     type: 'line',
-    data: [5, 12, 8, 15, 10, 3, 7],
+    data: trendData.value.counts.length > 0 ? trendData.value.counts : [0, 0, 0, 0, 0, 0, 0],
     smooth: true,
     areaStyle: {},
   }],
 }))
 
-// 风险地图数据（示例，后续从后端 API 获取）
-const riskMapData = ref([
-  { name: '教务处', high: 12, medium: 8, low: 5 },
-  { name: '图书馆', high: 5, medium: 15, low: 10 },
-  { name: '财务处', high: 20, medium: 3, low: 2 },
-  { name: '学工部', high: 8, medium: 10, low: 15 },
-])
-
 onMounted(async () => {
-  // 检查后端健康状态（同时推断数据库连接状态）
+  // 检查后端健康状态
   try {
     const res = await fetch('/api/health')
     if (res.ok) {
       backendOk.value = true
       dbOk.value = true
+      redisOk.value = true
+      // 加载仪表盘数据
+      await loadDashboardData()
     }
   } catch {
     backendOk.value = false
     dbOk.value = false
+    redisOk.value = false
   }
-  // Redis 状态由后端管理，后端在线即视为可用
-  redisOk.value = backendOk.value
 })
+
+async function loadDashboardData() {
+  try {
+    // 1. 统计卡片
+    const statsRes = await fetch('/api/dashboard/stats')
+    if (statsRes.ok) {
+      const data = await statsRes.json()
+      stats.value = data
+    }
+
+    // 2. 泄露类型分布
+    const typesRes = await fetch('/api/dashboard/leak-types')
+    if (typesRes.ok) {
+      pieData.value = await typesRes.json()
+    }
+
+    // 3. 近7天趋势
+    const trendRes = await fetch('/api/dashboard/leak-trend?days=7')
+    if (trendRes.ok) {
+      trendData.value = await trendRes.json()
+    }
+
+    // 4. 风险地图
+    const riskRes = await fetch('/api/dashboard/risk-map')
+    if (riskRes.ok) {
+      const riskData = await riskRes.json()
+      riskMapData.value = riskData.map(r => ({
+        name: r.name,
+        high: r.high,
+        medium: r.medium,
+        low: r.low,
+      }))
+    }
+  } catch (e) {
+    console.error('加载仪表盘数据失败:', e)
+  }
+}
 </script>
