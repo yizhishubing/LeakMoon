@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from sqlalchemy import func
 from datetime import datetime, timedelta
 from app.database import get_db
 from app.models.leak import LeakRecord
@@ -17,15 +17,6 @@ router = APIRouter()
 
 @router.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
-    """
-    获取仪表盘统计卡片数据
-
-    返回：
-        active_websites: 启用的巡检网站数
-        total_leaks: 累计发现泄露总数
-        high_risk_leaks: 高风险泄露数
-        pending_alerts: 待处理告警数（pending/sent 状态的告警）
-    """
     active_websites = db.query(Website).filter(Website.is_active == True).count()
     total_leaks = db.query(func.count(LeakRecord.id)).scalar()
     high_risk_leaks = db.query(func.count(LeakRecord.id)).filter(LeakRecord.severity == "high").scalar()
@@ -43,12 +34,6 @@ def get_stats(db: Session = Depends(get_db)):
 
 @router.get("/leak-types")
 def get_leak_types(db: Session = Depends(get_db)):
-    """
-    获取泄露类型分布数据（用于饼图）
-
-    返回：
-        [{name: str, value: int}, ...]
-    """
     results = (
         db.query(LeakRecord.data_type, func.count(LeakRecord.id))
         .group_by(LeakRecord.data_type)
@@ -59,12 +44,6 @@ def get_leak_types(db: Session = Depends(get_db)):
 
 @router.get("/leak-trend")
 def get_leak_trend(days: int = 7, db: Session = Depends(get_db)):
-    """
-    获取近 N 天的泄露趋势数据（用于折线图）
-
-    返回：
-        {dates: [str], counts: [int]}
-    """
     now = datetime.now()
     dates = []
     counts = []
@@ -89,18 +68,12 @@ def get_leak_trend(days: int = 7, db: Session = Depends(get_db)):
 
 @router.get("/risk-map")
 def get_risk_map(db: Session = Depends(get_db)):
-    """
-    获取各网站的风险等级分布数据（用于堆叠柱状图）
-
-    返回：
-        [{name: str, high: int, medium: int, low: int}, ...]
-    """
     results = (
         db.query(
             Website.name,
-            func.sum(func.if_(LeakRecord.severity == "high", 1, 0)).label("high"),
-            func.sum(func.if_(LeakRecord.severity == "medium", 1, 0)).label("medium"),
-            func.sum(func.if_(LeakRecord.severity == "low", 1, 0)).label("low"),
+            func.coalesce(func.sum(func.if_(LeakRecord.severity == "high", 1, 0)), 0).label("high"),
+            func.coalesce(func.sum(func.if_(LeakRecord.severity == "medium", 1, 0)), 0).label("medium"),
+            func.coalesce(func.sum(func.if_(LeakRecord.severity == "low", 1, 0)), 0).label("low"),
         )
         .outerjoin(LeakRecord, Website.id == LeakRecord.website_id)
         .group_by(Website.id, Website.name)
@@ -110,9 +83,9 @@ def get_risk_map(db: Session = Depends(get_db)):
     return [
         {
             "name": r[0],
-            "high": r[1] or 0,
-            "medium": r[2] or 0,
-            "low": r[3] or 0,
+            "high": int(r[1]),
+            "medium": int(r[2]),
+            "low": int(r[3]),
         }
         for r in results
     ]
