@@ -39,13 +39,6 @@ rules:
     description: 标准邮箱格式
     is_active: true
 
-  - name: 教职工工号
-    pattern: '(?:教|职工|员工)[-_]?\d{4,10}'
-    data_type: staff_id
-    severity: medium
-    description: 带中文前缀的教职工编号
-    is_active: true
-
   # ========== 低敏感级别 ==========
 
   - name: QQ号
