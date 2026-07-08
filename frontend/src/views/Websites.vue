@@ -4,7 +4,7 @@
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span>巡检网站管理</span>
-          <el-button type="primary" @click="showDialog = true">添加网站</el-button>
+          <el-button type="primary" @click="openAddDialog">添加网站</el-button>
         </div>
       </template>
 
@@ -19,10 +19,13 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="250" align="center">
           <template #default="{ row }">
-            <el-button size="small" type="primary" @click="runCrawl(row.id)" :loading="row.loading">立即爬取</el-button>
-            <el-button size="small" type="danger" @click="deleteSite(row.id)">删除</el-button>
+            <el-button-group>
+              <el-button size="small" type="primary" @click="runCrawl(row.id)" :loading="row.loading">爬取</el-button>
+              <el-button size="small" type="warning" @click="openEditDialog(row)">编辑</el-button>
+              <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
+            </el-button-group>
           </template>
         </el-table-column>
       </el-table>
@@ -30,8 +33,8 @@
       <el-empty v-if="websites.length === 0" description="暂无巡检网站，请点击添加网站" />
     </el-card>
 
-    <!-- 添加网站对话框 -->
-    <el-dialog v-model="showDialog" title="添加网站" width="500px">
+    <!-- 添加/编辑网站对话框 -->
+    <el-dialog v-model="showDialog" :title="isEditing ? '编辑网站' : '添加网站'" width="500px">
       <el-form :model="form" label-width="100px">
         <el-form-item label="网站名称">
           <el-input v-model="form.name" />
@@ -90,18 +93,30 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
 const websites = ref([])
 const showDialog = ref(false)
+const isEditing = ref(false)
+const editId = ref(null)
 const form = ref({ name: '', url: '', depth: 2, maxPages: 100 })
 
 // 检测结果弹窗
 const resultDialogVisible = ref(false)
 const resultData = ref(null)
+const resultTitle = computed(() => {
+  if (!resultData.value) return ''
+  return resultData.value.leaks_detected > 0
+    ? '检测完成，发现泄露信息'
+    : '检测完成，未发现泄露信息'
+})
+const resultSubtitle = computed(() => {
+  if (!resultData.value) return ''
+  return `共爬取 ${resultData.value.pages_crawled} 个页面`
+})
 
 onMounted(fetchWebsites)
 
@@ -114,21 +129,51 @@ async function fetchWebsites() {
   }
 }
 
+function openAddDialog() {
+  isEditing.value = false
+  editId.value = null
+  form.value = { name: '', url: '', depth: 2, maxPages: 100 }
+  showDialog.value = true
+}
+
+function openEditDialog(row) {
+  isEditing.value = true
+  editId.value = row.id
+  form.value = {
+    name: row.name,
+    url: row.url,
+    depth: row.depth,
+    maxPages: row.max_pages,
+  }
+  showDialog.value = true
+}
+
 async function saveWebsite() {
   try {
-    const res = await fetch('/api/websites/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form.value),
-    })
+    let res
+    if (isEditing.value) {
+      // 编辑：PUT
+      res = await fetch(`/api/websites/${editId.value}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form.value),
+      })
+    } else {
+      // 新增：POST
+      res = await fetch('/api/websites/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form.value),
+      })
+    }
+
     if (res.ok) {
-      ElMessage.success('添加成功')
+      ElMessage.success(isEditing.value ? '编辑成功' : '添加成功')
       showDialog.value = false
-      form.value = { name: '', url: '', depth: 2, maxPages: 100 }
       await fetchWebsites()
     } else {
       const err = await res.json()
-      ElMessage.error(err.detail || '添加失败')
+      ElMessage.error(err.detail || '保存失败')
     }
   } catch {
     ElMessage.error('后端服务未连接')
@@ -159,13 +204,27 @@ function goToLeaks() {
   router.push('/leaks')
 }
 
-async function deleteSite(id) {
+async function handleDelete(id) {
   try {
-    await fetch(`/api/websites/${id}`, { method: 'DELETE' })
-    ElMessage.success('删除成功')
-    await fetchWebsites()
-  } catch {
-    ElMessage.error('删除失败')
+    await ElMessageBox.confirm('确定要删除该网站吗？此操作不可恢复。', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+
+    const res = await fetch(`/api/websites/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      ElMessage.success('删除成功')
+      await fetchWebsites()
+    } else {
+      const err = await res.json()
+      ElMessage.error(err.detail || '删除失败')
+    }
+  } catch (action) {
+    // 用户取消删除，不报错
+    if (action !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
   }
 }
 </script>
