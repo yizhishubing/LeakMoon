@@ -46,6 +46,15 @@
           <el-input-number v-model="form.maxPages" :min="10" :max="500" />
         </el-form-item>
       </el-form>
+      <el-divider>爬取深度说明</el-divider>
+      <el-descriptions :column="1" border size="small">
+        <el-descriptions-item label="深度 0">仅爬取首页，不进入任何子页面</el-descriptions-item>
+        <el-descriptions-item label="深度 1">爬取首页 + 首页上的所有直接链接页面</el-descriptions-item>
+        <el-descriptions-item label="深度 2">在深度1基础上，继续爬取第二层链接页面</el-descriptions-item>
+        <el-descriptions-item label="深度 3">继续向下扩展至第三层链接</el-descriptions-item>
+        <el-descriptions-item label="深度 4">继续向下扩展至第四层链接</el-descriptions-item>
+        <el-descriptions-item label="深度 5">继续向下扩展至第五层链接（最大）</el-descriptions-item>
+      </el-descriptions>
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>
         <el-button type="primary" @click="saveWebsite">保存</el-button>
