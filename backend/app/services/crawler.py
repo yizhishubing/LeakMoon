@@ -7,6 +7,7 @@
 3. 对每个内部链接，如果深度未达到上限则继续爬取
 4. 遵守爬取频率限制，避免对目标站点造成压力
 5. 过滤图片、静态资源等非HTML页面，防止二进制内容被误判为文本
+6. 支持解析 robots.txt 和 sitemap.xml 发现额外页面
 """
 
 import httpx
@@ -53,6 +54,7 @@ class SiteCrawler:
     - 默认延迟降至 0.3s，在保证礼貌爬取的前提下提升速度
     - 使用并发请求 + 信号量控制，避免串行等待
     - 过滤锚点、空链接等无效 URL，减少无用爬取
+    - 支持解析 robots.txt 和 sitemap.xml 发现额外页面
     """
 
     def __init__(
@@ -78,6 +80,7 @@ class SiteCrawler:
         - BFS 层级遍历，按深度分组并发
         - 标准化 URL（去锚点、去尾部斜杠），避免重复爬取
         - 使用 set 去重 visited，避免同一页面被多次请求
+        - 爬取前自动发现 robots.txt 和 sitemap.xml
         """
         parsed = urlparse(start_url)
         self.domains.add(parsed.netloc)
@@ -91,6 +94,11 @@ class SiteCrawler:
         )
 
         try:
+            # 预先发现 sitemap 和 robots.txt 中的页面
+            extra_urls = await self._discover_via_sitemap(start_url)
+            if extra_urls:
+                print(f"[Crawler] Discovered {len(extra_urls)} URLs from sitemap")
+
             semaphore = asyncio.Semaphore(self.max_concurrent)
 
             async def _fetch_with_semaphore(url: str, depth: int) -> Optional[dict]:
@@ -98,8 +106,8 @@ class SiteCrawler:
                     return await self._fetch_page(url, depth)
 
             results = []
-            # BFS: 当前层待爬取的 URL 列表
-            current_level = [(start_url, 0)]
+            # BFS: 当前层待爬取的 URL 列表（初始包含 sitemap 发现的 URL）
+            current_level = [(u, 0) for u in extra_urls] if extra_urls else [(start_url, 0)]
 
             while current_level and len(results) < max_pages:
                 # 过滤无效 URL，收集有效 URL
@@ -152,6 +160,84 @@ class SiteCrawler:
         finally:
             await self._client.aclose()
             self._client = None
+
+    async def _discover_via_sitemap(self, start_url: str) -> list[str]:
+        """
+        通过 robots.txt 和 sitemap.xml 发现额外页面
+
+        策略：
+        1. 先请求 robots.txt，查找 Sitemap 指令
+        2. 如果没有找到，直接请求 sitemap.xml
+        3. 解析 sitemap 中的 URL，只保留同域名的
+        """
+        parsed = urlparse(start_url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        discovered = []
+
+        try:
+            # 1. 尝试 robots.txt
+            resp = await self._client.get(f"{base}/robots.txt", timeout=10)
+            if resp.status_code == 200:
+                for line in resp.text.splitlines():
+                    line = line.strip()
+                    if line.lower().startswith("sitemap:"):
+                        sitemap_url = line.split(":", 1)[1].strip()
+                        discovered.extend(await self._parse_sitemap(sitemap_url, parsed.netloc))
+        except Exception:
+            pass  # robots.txt 不存在或解析失败，继续尝试 sitemap.xml
+
+        # 2. 直接尝试 sitemap.xml
+        try:
+            resp = await self._client.get(f"{base}/sitemap.xml", timeout=10)
+            if resp.status_code == 200:
+                discovered.extend(await self._parse_sitemap(f"{base}/sitemap.xml", parsed.netloc))
+        except Exception:
+            pass  # sitemap.xml 不存在
+
+        return discovered
+
+    async def _parse_sitemap(self, sitemap_url: str, domain: str) -> list[str]:
+        """
+        解析 sitemap.xml 文件，提取同域名的 URL
+
+        支持两种格式：
+        - 直接 sitemap（<url><loc>...</loc></url>）
+        - sitemap index（<sitemap><loc>...</loc></sitemap>）
+        """
+        urls = []
+        try:
+            resp = await self._client.get(sitemap_url, timeout=30)
+            if resp.status_code != 200:
+                return urls
+
+            soup = BeautifulSoup(resp.text, "lxml")
+
+            # 直接 sitemap：查找 <url><loc>...</loc></url>
+            for url_elem in soup.find_all("url"):
+                loc = url_elem.find("loc")
+                if loc and loc.string:
+                    loc_url = loc.string.strip()
+                    if self._is_same_domain(loc_url, domain):
+                        urls.append(loc_url)
+
+            # sitemap index：查找 <sitemap><loc>...</loc></sitemap>
+            if not soup.find_all("url"):
+                for sitemap_elem in soup.find_all("sitemap"):
+                    loc = sitemap_elem.find("loc")
+                    if loc and loc.string:
+                        sub_sitemap = loc.string.strip()
+                        urls.extend(await self._parse_sitemap(sub_sitemap, domain))
+
+        except Exception as e:
+            print(f"[Crawler] Failed to parse sitemap {sitemap_url}: {e}")
+
+        return urls
+
+    @staticmethod
+    def _is_same_domain(url: str, domain: str) -> bool:
+        """检查 URL 是否与目标域名一致"""
+        parsed = urlparse(url)
+        return parsed.netloc == domain
 
     @staticmethod
     def _normalize_url(url: str) -> Optional[str]:
