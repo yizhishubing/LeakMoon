@@ -74,19 +74,39 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { PieChart, LineChart, BarChart } from 'echarts/charts'
+import {
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+} from 'echarts/components'
+import VChart from 'vue-echarts'
 import RiskMap from '@/components/RiskMap.vue'
+
+// 注册 ECharts 组件
+use([
+  CanvasRenderer,
+  PieChart,
+  LineChart,
+  BarChart,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+])
 
 const stats = ref({ activeWebsites: 0, totalLeaks: 0, highRiskLeaks: 0, pendingAlerts: 0 })
 const backendOk = ref(false)
 const dbOk = ref(false)
 const redisOk = ref(false)
 
-// 从 API 获取的饼图数据
+// 图表数据
 const pieData = ref([])
-// 从 API 获取的趋势数据
 const trendData = ref({ dates: [], counts: [] })
-// 从 API 获取的风险地图数据
 const riskMapData = ref([])
 
 const pieOption = computed(() => ({
@@ -113,14 +133,12 @@ const lineOption = computed(() => ({
 }))
 
 onMounted(async () => {
-  // 检查后端健康状态
   try {
     const res = await fetch('/api/health')
     if (res.ok) {
       backendOk.value = true
       dbOk.value = true
       redisOk.value = true
-      // 加载仪表盘数据
       await loadDashboardData()
     }
   } catch {
@@ -132,34 +150,23 @@ onMounted(async () => {
 
 async function loadDashboardData() {
   try {
-    // 1. 统计卡片
     const statsRes = await fetch('/api/dashboard/stats')
-    if (statsRes.ok) {
-      const data = await statsRes.json()
-      stats.value = data
-    }
+    if (statsRes.ok) stats.value = await statsRes.json()
 
-    // 2. 泄露类型分布
     const typesRes = await fetch('/api/dashboard/leak-types')
-    if (typesRes.ok) {
-      pieData.value = await typesRes.json()
-    }
+    if (typesRes.ok) pieData.value = await typesRes.json()
 
-    // 3. 近7天趋势
     const trendRes = await fetch('/api/dashboard/leak-trend?days=7')
-    if (trendRes.ok) {
-      trendData.value = await trendRes.json()
-    }
+    if (trendRes.ok) trendData.value = await trendRes.json()
 
-    // 4. 风险地图
     const riskRes = await fetch('/api/dashboard/risk-map')
     if (riskRes.ok) {
       const riskData = await riskRes.json()
       riskMapData.value = riskData.map(r => ({
         name: r.name,
-        high: r.high,
-        medium: r.medium,
-        low: r.low,
+        high: Number(r.high),
+        medium: Number(r.medium),
+        low: Number(r.low),
       }))
     }
   } catch (e) {
