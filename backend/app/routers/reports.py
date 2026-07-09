@@ -285,11 +285,11 @@ def download_report(report_id: int, db: Session = Depends(get_db)):
     output.seek(0)
 
     # 设置响应头
-    safe_name = report.title.replace("/", "_").replace("\\", "_")
+    safe_name = "LeakMoon_Report"
     filename = f"{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": "attachment; filename=report.xlsx"},
     )
