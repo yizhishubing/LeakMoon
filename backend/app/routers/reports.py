@@ -285,7 +285,7 @@ def download_report(report_id: int, db: Session = Depends(get_db)):
     output.seek(0)
 
     # 设置响应头
-    safe_name = "LeakMoon_Report"
+    safe_name = report.title.replace("/", "_").replace(chr(92), "_")
     filename = f"{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
     return StreamingResponse(
