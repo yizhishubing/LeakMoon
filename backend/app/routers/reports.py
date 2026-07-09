@@ -154,7 +154,7 @@ def download_report(report_id: int, db: Session = Depends(get_db)):
     recent_leaks = (
         db.query(LeakRecord)
         .order_by(LeakRecord.detected_at.desc())
-        .limit(100)
+        
         .all()
     )
 
@@ -250,7 +250,7 @@ def download_report(report_id: int, db: Session = Depends(get_db)):
     ws4 = wb.create_sheet("泄露明细")
     ws4.sheet_properties.tabColor = "C00000"
 
-    ws4["A1"].value = f"最近泄露明细（共 {total_leaks} 条，展示前100条）"
+    ws4["A1"].value = f"最近泄露明细（共 {total_leaks} 条）"
     ws4["A1"].font = TITLE_FONT
 
     detail_headers = ["序号", "类型", "严重程度", "匹配内容", "来源URL", "检测时间"]
