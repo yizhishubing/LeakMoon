@@ -9,6 +9,26 @@ from sqlalchemy import or_, func
 from app.database import get_db
 from app.models.leak import LeakRecord
 from app.schemas.leak import LeakResponse
+import re
+
+# Unicode 代理对及替换字符：确保 API 响应 JSON 序列化不报错
+_SANITIZE_RE = re.compile(r'[\ud800-\udfff�]')
+
+
+def _clean_str(s: str) -> str:
+    """清理字符串中的非法 Unicode 字符（防御性处理，防止 JSON 序列化异常）"""
+    if not s:
+        return s
+    return _SANITIZE_RE.sub('', s)
+
+
+def _clean_record(record: LeakRecord) -> LeakRecord:
+    """对泄露记录各文本字段进行 Unicode 清洗（防御性清洗，确保 JSON 可序列化）"""
+    for field in ['rule_name', 'matched_text', 'source_url', 'context_before', 'context_after', 'note']:
+        val = getattr(record, field)
+        if val:
+            setattr(record, field, _clean_str(val))
+    return record
 
 router = APIRouter()
 
@@ -36,7 +56,9 @@ def list_leaks(
                 LeakRecord.data_type.contains(search),
             )
         )
-    return query.order_by(LeakRecord.detected_at.desc()).offset(skip).limit(limit).all()
+    records = query.order_by(LeakRecord.detected_at.desc()).offset(skip).limit(limit).all()
+    # 防御性清洗：确保所有文本字段无非法 Unicode 字符，防止 JSON 序列化异常
+    return [_clean_record(r) for r in records]
 
 
 @router.get("/total")

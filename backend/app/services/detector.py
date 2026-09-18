@@ -25,6 +25,25 @@ _BASE64_PATTERN = re.compile(r'data:[^;]*;base64,[A-Za-z0-9+/=]{40,}')
 _LONG_BASE64_SEQUENCE = re.compile(r'[A-Za-z0-9+/]{64,}={0,2}')
 _IMG_SRC_BASE64 = re.compile(r'<img\b[^>]*\bsrc\s*=\s*["\']data:[^"\']*base64[^"\']*["\'][^>]*>', re.IGNORECASE)
 
+# Unicode 代理对及替换字符正则：U+D800-U+DFFF（代理区）、U+FFFD（替换字符）
+# 这些字符通常由二进制文件（如图片）被错误解析为文本时产生，需清理后存入数据库
+_UNICODE_SANITIZE_PATTERN = re.compile(
+    r'[\ud800-\udfff�]'
+)
+
+
+def _sanitize_text(text: str) -> str:
+    """
+    清理文本中的非法 Unicode 字符（代理对、替换字符等）
+
+    场景：图片二进制数据被错误解析为文本时会产生 U+FFFD（�）或随机代理字符，
+    这些字符写入数据库后在 JSON 序列化时会引发 Invalid \escape 错误。
+    此处统一清洗，确保入库文本均为合法 Unicode。
+    """
+    if not text:
+        return text
+    return _UNICODE_SANITIZE_PATTERN.sub('', text)
+
 
 class SensitiveInfoDetector:
     def __init__(self, db: Session):
@@ -46,6 +65,8 @@ class SensitiveInfoDetector:
 
         # 清理文本中的 base64 编码数据，防止图片编码被误判为敏感信息
         text = self._clean_base64_from_text(text)
+        # 清理非法 Unicode 字符（如二进制数据被误解析产生的替换字符）
+        text = _sanitize_text(text)
 
         if not text:
             return []
@@ -89,13 +110,13 @@ class SensitiveInfoDetector:
                 records.append(LeakRecord(
                     website_id=None,
                     detected_at=datetime.now(),
-                    rule_name=rule["name"],
+                    rule_name=_sanitize_text(rule["name"]),
                     severity=rule["severity"],
                     data_type=rule["data_type"],
-                    matched_text=masked_text,
-                    source_url=url,
-                    context_before=context_before[:500],
-                    context_after=context_after[:500],
+                    matched_text=_sanitize_text(masked_text),
+                    source_url=_sanitize_text(url),
+                    context_before=_sanitize_text(context_before[:500]),
+                    context_after=_sanitize_text(context_after[:500]),
                     is_verified=0,
                 ))
 
