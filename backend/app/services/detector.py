@@ -39,6 +39,7 @@ class SensitiveInfoDetector:
         优化：
         - 预编译规则列表，避免每次循环访问 tuple
         - 减少中间变量分配
+        - 去重：同一页面的相同匹配文本只保留一次
         """
         url = page_data["url"]
         text = page_data["text"]
@@ -49,15 +50,28 @@ class SensitiveInfoDetector:
         if not text:
             return []
 
+        # 检查是否为SPA页面（文本过短且内容主要是导航）
+        if self._is_likely_spider_trap(text, url):
+            return []
+
         records = []
         # 预提取规则列表，避免重复访问 self.rule_engine.compiled_rules
         rules = self.rule_engine.compiled_rules
         is_fp = self.false_positive_filter.is_false_positive
         mask_fn = self._mask_sensitive
 
+        # 用于去重：同一URL的相同匹配文本只保留一次
+        seen_matches = set()
+
         for compiled_regex, rule in rules:
             for match in compiled_regex.finditer(text):
                 matched_text = match.group(0)
+
+                # 去重：跳过已处理过的匹配
+                dedup_key = (matched_text, rule["name"])
+                if dedup_key in seen_matches:
+                    continue
+                seen_matches.add(dedup_key)
 
                 # 误报过滤
                 if is_fp(matched_text, rule):
@@ -86,6 +100,38 @@ class SensitiveInfoDetector:
                 ))
 
         return records
+
+    @staticmethod
+    def _is_likely_spider_trap(text: str, url: str) -> bool:
+        """
+        检测页面是否为SPA或仅包含导航菜单的陷阱页面
+
+        策略：
+        1. 文本过短（<500字符）且包含大量导航关键词
+        2. URL包含典型的SPA路由模式（如 /info/xxx/xxx.htm）
+        3. 文本中只包含列表项而没有实际内容段落
+        """
+        # 如果文本太短，可能是SPA或未完全加载
+        if len(text) < 500:
+            # 检查是否包含大量导航/菜单关键词
+            nav_keywords = ['学校概况', '学校新闻', '机构设置', '师资队伍',
+                           '教务处', '科学研究', '招生简章', '通知公告']
+            nav_count = sum(1 for kw in nav_keywords if kw in text)
+            if nav_count >= 3:
+                return True
+
+        # 检查URL模式：某些路径可能是SPA动态路由
+        spa_patterns = ['/info/', '/xxgk/', '/jwc/', '/kyc/']
+        if any(pattern in url for pattern in spa_patterns):
+            # 如果文本很短且没有实质性内容，可能是SPA
+            if len(text) < 1000:
+                # 检查是否有实质性段落（连续非空字符超过20个）
+                import re
+                paragraphs = re.findall(r'[^\n]{20,}', text)
+                if len(paragraphs) < 3:
+                    return True
+
+        return False
 
     @staticmethod
     def _clean_base64_from_text(text: str) -> str:

@@ -52,10 +52,20 @@ async def run_crawl_now(website_id: int, db: Session = Depends(get_db)):
             all_records.append(record)
         total_leaks += len(records)
 
-    # 第二阶段：批量插入（一次 commit 代替 N 次）
+    # 第二阶段：去重并批量插入
     if all_records:
-        db.add_all(all_records)
+        # 去重：同一 website_id + source_url + matched_text + data_type 只保留一条
+        seen = set()
+        unique_records = []
+        for record in all_records:
+            key = (record.website_id, record.source_url, record.matched_text, record.data_type)
+            if key not in seen:
+                seen.add(key)
+                unique_records.append(record)
+
+        db.add_all(unique_records)
         db.commit()
+        total_leaks = len(unique_records)
 
     # 第三阶段：异步发送高严重级别告警
     high_severity_leaks = [r for r in all_records if r.severity == "high" and r.is_verified == 0]
