@@ -81,9 +81,18 @@ class SiteCrawler:
         - 标准化 URL（去锚点、去尾部斜杠），避免重复爬取
         - 使用 set 去重 visited，避免同一页面被多次请求
         - 爬取前自动发现 robots.txt 和 sitemap.xml
+        - 支持跨子域名爬取（如 www.tjnu.edu.cn -> xxb.tjnu.edu.cn）
         """
         parsed = urlparse(start_url)
         self.domains.add(parsed.netloc)
+
+        # 提取父域名（如 tjnu.edu.cn），允许爬取所有子域名
+        hostname = parsed.netloc
+        if hostname.startswith('www.'):
+            hostname = hostname[4:]
+        self.parent_domain = hostname
+        self.domains.add(hostname)
+
         self.visited = set()
 
         # 创建共享客户端（连接池复用）
@@ -119,7 +128,7 @@ class SiteCrawler:
                     if normalized in self.visited:
                         continue
                     parsed_url = urlparse(normalized)
-                    if parsed_url.netloc not in self.domains:
+                    if parsed_url.netloc not in self.domains and not self._is_subdomain(parsed_url.netloc):
                         continue
                     valid_urls.append((normalized, depth))
 
@@ -147,7 +156,13 @@ class SiteCrawler:
                             normalized = self._normalize_url(link)
                             if normalized and normalized not in self.visited:
                                 parsed_link = urlparse(normalized)
-                                if parsed_link.netloc in self.domains:
+                                # 允许爬取父域名及其所有子域名
+                                is_same_domain = parsed_link.netloc in self.domains
+                                is_subdomain = hasattr(self, 'parent_domain') and (
+                                    parsed_link.netloc == self.parent_domain or
+                                    parsed_link.netloc.endswith(f'.{self.parent_domain}')
+                                )
+                                if is_same_domain or is_subdomain:
                                     next_level.append((normalized, page_data["_depth"] + 1))
 
                 # 批次间短暂延迟
@@ -235,9 +250,15 @@ class SiteCrawler:
 
     @staticmethod
     def _is_same_domain(url: str, domain: str) -> bool:
-        """检查 URL 是否与目标域名一致"""
+        """检查 URL 是否与目标域名一致（包括子域名）"""
         parsed = urlparse(url)
-        return parsed.netloc == domain
+        return parsed.netloc == domain or parsed.netloc.endswith(f'.{domain}')
+
+    def _is_subdomain(self, url_netloc: str) -> bool:
+        """检查 URL 是否为父域名的子域名"""
+        if not hasattr(self, 'parent_domain'):
+            return False
+        return url_netloc == self.parent_domain or url_netloc.endswith(f'.{self.parent_domain}')
 
     @staticmethod
     def _normalize_url(url: str) -> Optional[str]:
